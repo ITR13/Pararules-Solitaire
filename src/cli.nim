@@ -8,12 +8,12 @@ type
   StoredData = object
     hand: DeckData
     waste: DeckData
-    foundation: array[7, DeckData]
-    tableau: array[4, DeckData]
+    tableau: array[7, DeckData]
+    foundation: array[4, DeckData]
     stock: DeckData
 
 const suitSymbols = [
-  "", #Hearts, Clubs, Diamonds, Spades,
+  " ", #Hearts, Clubs, Diamonds, Spades,
   "♥",
   "♣",
   "♦",
@@ -47,7 +47,7 @@ func toStr(suit: CardSuit, value: CardValue): (string, ForegroundColor) =
       of None: fgWhite
   )
 
-  return (center(suitSymbol & rankSymbol, 3), color)
+  return (center("Z" & rankSymbol, 3).replace("Z", suitSymbol), color)
 
 proc UpdateDeck(storedData: var StoredData, deckData: DeckData) =
   case deckData.kind:
@@ -66,20 +66,20 @@ func UpdateAll(): StoredData =
   StoredData(
     hand: GetDeckData(Hand, 0),
     waste: GetDeckData(Waste, 0),
-    foundation: [
-      GetDeckData(Foundation, 1),
-      GetDeckData(Foundation, 2),
-      GetDeckData(Foundation, 3),
-      GetDeckData(Foundation, 4),
-      GetDeckData(Foundation, 5),
-      GetDeckData(Foundation, 6),
-      GetDeckData(Foundation, 7),
-    ],
     tableau: [
       GetDeckData(Tableau, 1),
       GetDeckData(Tableau, 2),
       GetDeckData(Tableau, 3),
       GetDeckData(Tableau, 4),
+      GetDeckData(Tableau, 5),
+      GetDeckData(Tableau, 6),
+      GetDeckData(Tableau, 7),
+    ],
+    foundation: [
+      GetDeckData(Foundation, 1),
+      GetDeckData(Foundation, 2),
+      GetDeckData(Foundation, 3),
+      GetDeckData(Foundation, 4),
     ],
   )
 
@@ -89,7 +89,7 @@ proc PrintGame(storedData: StoredData) =
 
   let stockCount = len(storedData.hand.cards)
   let stockCountStr = center($stockCount, 5)
-  let talon = storedData.hand
+  let talon = storedData.waste
 
 
 
@@ -114,7 +114,7 @@ proc PrintGame(storedData: StoredData) =
   # ┌─ ♥ ─┐ ┌─ ♣ ─┐ ┌─ ♦ ─┐ ┌─ ♠ ─┐
   # │ AAA │ │ BBB │ │ CCC │ │ DDD │
   # └─────┘ └─────┘ └─────┘ └─────┘
-  stdout.write("┌ ♥ ┐ ┌ ♣ ┐ ┌ ♦ ┐ ┌ ♠ ┐")
+  stdout.write("┌─ ♥ ─┐ ┌─ ♣ ─┐ ┌─ ♦ ─┐ ┌─ ♠ ─┐\n")
   for i in 0..3:
     let fou = storedData.foundation[i]
 
@@ -125,9 +125,9 @@ proc PrintGame(storedData: StoredData) =
       stdout.styledWrite(color, bgWhite, text)
     else:
       stdout.write("   ")
-  stdout.write(" | ")
+    stdout.write(" | ")
   stdout.write("\n")
-  stdout.write("└─────┘ └─────┘ └─────┘ └─────┘")
+  stdout.write("└─────┘ └─────┘ └─────┘ └─────┘\n")
 
   # ┌─ TABLEAU ───────────────────┐
   # │ [1] [2] [3] [4] [5] [6] [7] │
@@ -140,14 +140,17 @@ proc PrintGame(storedData: StoredData) =
     stdout.write("│ ")
     for index in 0..6:
       let tableau = storedData.tableau[index]
-      let cardIndex = len(tableau.cards) - i
+      let cardIndex = i - 1
 
-      if cardIndex >= 0:
+      if cardIndex < len(tableau.cards):
         let (_, suit, value) = tableau.cards[cardIndex]
         let (text, color) = toStr(suit, value)
         stdout.styledWrite(color, bgWhite, text)
       else:
         stdout.write("   ")
+      stdout.write(" ")
+    stdout.write("│\n")
+
   stdout.write("└─────────────────────────────┘\n")
   stdout.write("\n")
 
@@ -201,14 +204,15 @@ proc PlayTurn(storedData: var StoredData) =
           cardId = id
           continue
         of "T1", "T2", "T3", "T4", "T5", "T6", "T7":
-          let index = int(input[1]) - 1
-          let tableau = storedData.tableau[index]
+          let index = int(input[1]) - int('0')
+          let tableau = storedData.tableau[index-1]
           let cards = tableau.cards
           if len(cards) == 0:
             err = "Tableau #" & $index & " is empty"
             continue
 
-          deck = some(storedData.tableau[index])
+          deck = some(tableau)
+          hasInput = "Tableau" & $index
           continue
         else:
           err = "Invalid input " & input

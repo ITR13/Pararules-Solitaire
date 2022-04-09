@@ -49,7 +49,7 @@ const HAND_ID = ActorId(52+7+4+1)
 const WASTE_ID = ActorId(52+7+4+1+1)
 
 
-let staticRules =
+let rules =
   ruleset:
     rule getDeck(Fact):
       what:
@@ -65,57 +65,57 @@ let staticRules =
         (id, Suit, suit)
         (id, Value, value)
 
+let otherRules =
+  ruleset:
+    rule updateDeck(Fact):
+      what:
+        (id, Cards, cards)
+        (id, Kind, kind, then = false)
+      then:
+        let l = len(cards)
+        session.insert(id, Size, l)
+
+        for cardId in cards:
+          session.insert(cardId, Location, id)
+
+        case kind:
+          of Tableau:
+            if l == 0:
+              session.insert(id, Suit, None)
+              session.insert(id, Value, CardValue(0))
+            else:
+              let cardId = cards[l-1]
+              let card = session.query(rules.getCard, id=cardId)
+              session.insert(id, Suit, card.suit)
+              session.insert(id, Value, card.value)
+          of Foundation:
+            if l == 0:
+              session.insert(id, Value, CardValue(0))
+            else:
+              let cardId = cards[l-1]
+              let card = session.query(rules.getCard, id=cardId)
+              session.insert(id, Value, card.value)
+          of Hand, Waste:
+            # Hand and Waste never change suit or value
+            discard
+          of Card:
+            raise newException(ValueError, "Cards aren't decks")
+
 var session = initSession(Fact, autoFire=false)
-for r in staticRules.fields:
+for r in rules.fields:
+  session.add(r)
+for r in otherRules.fields:
   session.add(r)
 
 
 proc CreateTableau(index: 1..7) =
   var actorId = ActorId(52+index)
 
-  let rules =
-    ruleset:
-      rule updateDeck(Fact):
-        what:
-          (actorId, Cards, cards)
-        then:
-          let l = len(cards)
-          session.insert(actorId, Size, l)
-          if l == 0:
-            session.insert(actorId, Suit, None)
-            session.insert(actorId, Value, 0)
-          else:
-            let cardId = cards[l-1]
-            let card = session.query(staticRules.getCard, id=cardId)
-            session.insert(actorId, Suit, card.suit)
-            session.insert(actorId, Value, card.value)
-
-  for r in rules.fields:
-    session.add(r)
-
   session.insert(actorId, Kind, Tableau)
   session.insert(actorId, Cards, @[])
 
 proc CreateFoundation(index: 1..4) =
   var actorId = ActorId(52+7+index)
-
-  let rules =
-    ruleset:
-      rule updateDeck(Fact):
-        what:
-          (actorId, Cards, cards)
-        then:
-          let l = len(cards)
-          session.insert(actorId, Size, l)
-          if l == 0:
-            session.insert(actorId, Value, 0)
-          else:
-            let cardId = cards[l-1]
-            let card = session.query(staticRules.getCard, id=cardId)
-            session.insert(actorId, Value, card.value)
-
-  for r in rules.fields:
-    session.add(r)
 
   session.insert(actorId, Kind, Foundation)
   session.insert(actorId, Cards, @[])
@@ -124,51 +124,24 @@ proc CreateFoundation(index: 1..4) =
 proc CreateHand() =
   var actorId = HAND_ID
 
-  let rules =
-    ruleset:
-      rule updateDeckInfo(Fact):
-        what:
-          (actorId, Cards, cards)
-        then:
-          let l = len(cards)
-          session.insert(actorId, Size, l)
-          for i in 1..l:
-            let cardId = cards[i]
-            session.insert(cardId, Location, actorId)
-
-  for r in rules.fields:
-    session.add(r)
-
   session.insert(actorId, Kind, Hand)
   session.insert(actorId, Cards, @[])
   session.insert(actorId, Suit, None)
-  session.insert(actorId, Value, 13) # No cards allowed
+  session.insert(actorId, Value, CardValue(0)) # Can't be placed onto
 
 proc CreateWaste() =
   var actorId = WASTE_ID
 
-  let rules =
-    ruleset:
-      rule updateDeck(Fact):
-        what:
-          (actorId, Cards, cards)
-        then:
-          let l = len(cards)
-          session.insert(actorId, Size, l)
-
-  for r in rules.fields:
-    session.add(r)
-
   session.insert(actorId, Kind, Waste)
   session.insert(actorId, Cards, @[])
   session.insert(actorId, Suit, None)
-  session.insert(actorId, Value, None)
+  session.insert(actorId, Value, CardValue(0)) # Can't be placed onto
 
 proc CreateCard(suit: CardSuit, value: CardValue, deckActorId: ActorId) =
   if value == 0:
     raise newException(ValueError, "Cannot create card with value 0")
 
-  let deck = session.query(staticRules.getDeck, id=deckActorId)
+  let deck = session.query(rules.getDeck, id=deckActorId)
 
   let actorId = ActorId(value + (
     case suit:
@@ -207,6 +180,8 @@ proc CreateAllCards() =
   var cards: seq[(CardSuit, CardValue)]
 
   for suit in CardSuit:
+    if suit == None:
+      continue
     for value in 1..13:
       cards.add((suit, CardValue(value)))
 
@@ -214,13 +189,13 @@ proc CreateAllCards() =
 
   # Left value is count, right is actorId
   let cardDistribution = @[
-    (1, 1),
-    (2, 2),
-    (3, 3),
-    (4, 4),
-    (5, 5),
-    (6, 6),
-    (7, 7),
+    (1, 52+1),
+    (2, 52+2),
+    (3, 52+3),
+    (4, 52+4),
+    (5, 52+5),
+    (6, 52+6),
+    (7, 52+7),
     (1000, HAND_ID) # Hand gets rest of cards
   ]
 
@@ -228,25 +203,26 @@ proc CreateAllCards() =
     var dist = i
     for (count, actorId) in cardDistribution:
       if dist < count:
-        CreateCard(suit, value, actorId+52)
+        CreateCard(suit, value, actorId)
         break
       else:
         dist -= count
 
   # Show top card of tableau and hand
   for tabId in 1..7:
-    let deck = session.query(staticRules.getDeck, id=ActorId(52+tabId))
+    let deck = session.query(rules.getDeck, id=ActorId(52+tabId))
     # using len because size is not set yet since fireRules hasn't been called
     let cardId = deck.cards[len(deck.cards)-1]
     session.insert(cardId, Hidden, false)
 
-  let hand = session.query(staticRules.getDeck, id=ActorId(HAND_ID))
+  let hand = session.query(rules.getDeck, id=ActorId(HAND_ID))
   if len(hand.cards) > 0:
     let cardId = hand.cards[len(hand.cards)-1]
     session.insert(cardId, Hidden, false)
 
 proc CreateAll() =
   CreateAllDecks()
+  session.fireRules()
   CreateAllCards()
   session.fireRules()
 CreateAll()
@@ -254,11 +230,11 @@ CreateAll()
 func GetHandWasteState*(): HandWasteState =
   let hand = (
     {.cast(noSideEffect).}:
-      session.query(staticRules.getDeck, id=HAND_ID)
+      session.query(rules.getDeck, id=HAND_ID)
   )
   let waste = (
     {.cast(noSideEffect).}:
-      session.query(staticRules.getDeck, id=WASTE_ID)
+      session.query(rules.getDeck, id=WASTE_ID)
   )
 
   if hand.size != 0:
@@ -270,11 +246,11 @@ func GetHandWasteState*(): HandWasteState =
 func GetValidMovesForCard*(cardId: ActorId): seq[ActorId] =
   let card = (
     {.cast(noSideEffect).}:
-      session.query(staticRules.getCard, id=cardId)
+      session.query(rules.getCard, id=cardId)
   )
   let deck = (
     {.cast(noSideEffect).}:
-      session.query(staticRules.getDeck, id=card.location)
+      session.query(rules.getDeck, id=card.location)
   )
 
   var validMoves: seq[ActorId]
@@ -301,7 +277,7 @@ func GetValidMovesForCard*(cardId: ActorId): seq[ActorId] =
     # Tableau accepts cards of one less value (empty = 14) and of the opposite color
     let tab = (
       {.cast(noSideEffect).}:
-        session.query(staticRules.getDeck, id=tabId)
+        session.query(rules.getDeck, id=tabId)
     )
     let acceptValue = (if tab.value == 0: 13 else: tab.value - 1)
     if isOppositeColor(card.suit, true) and card.value == acceptValue:
@@ -313,7 +289,7 @@ func GetValidMovesForCard*(cardId: ActorId): seq[ActorId] =
       # Foundation accepts cards of one more value (empty = 0) and of the same color
       let fou = (
         {.cast(noSideEffect).}:
-          session.query(staticRules.getDeck, id=fouId)
+          session.query(rules.getDeck, id=fouId)
       )
       let acceptValue = fou.value + 1
       if isOppositeColor(card.suit, false) and card.value == acceptValue:
@@ -326,7 +302,7 @@ func GetSelectableCards*(): HashSet[ActorId] =
   # You can also select all shown cards in the tableau
   let waste = (
     {.cast(noSideEffect).}:
-      session.query(staticRules.getDeck, id=WASTE_ID)
+      session.query(rules.getDeck, id=WASTE_ID)
   )
 
   var selectable: seq[ActorId]
@@ -337,7 +313,7 @@ func GetSelectableCards*(): HashSet[ActorId] =
   for fouId in ActorId(52+8)..ActorId(52+12):
     let fou = (
       {.cast(noSideEffect).}:
-        session.query(staticRules.getDeck, id=fouId)
+        session.query(rules.getDeck, id=fouId)
     )
     if fou.size != 0:
       selectable.add(fou.cards[len(fou.cards)-1])
@@ -345,12 +321,12 @@ func GetSelectableCards*(): HashSet[ActorId] =
   for tabId in ActorId(52+1)..ActorId(52+7):
     let tab = (
       {.cast(noSideEffect).}:
-        session.query(staticRules.getDeck, id=tabId)
+        session.query(rules.getDeck, id=tabId)
     )
     for card in tab.cards:
       let hidden = (
         {.cast(noSideEffect).}:
-          session.query(staticRules.getCard, id=card).hidden
+          session.query(rules.getCard, id=card).hidden
       )
       if hidden:
         break
@@ -361,7 +337,7 @@ func GetSelectableCards*(): HashSet[ActorId] =
 func GetDeckData*(deckId: ActorId): DeckData =
   let deck = (
     {.cast(noSideEffect).}:
-      session.query(staticRules.getDeck, id=deckId)
+      session.query(rules.getDeck, id=deckId)
   )
 
   var cardData: seq[(ActorId, CardSuit, CardValue)]
@@ -369,7 +345,7 @@ func GetDeckData*(deckId: ActorId): DeckData =
   for cardId in deck.cards:
     let card = (
       {.cast(noSideEffect).}:
-        session.query(staticRules.getCard, id=cardId)
+        session.query(rules.getCard, id=cardId)
     )
     if card.hidden:
       cardData.add((deckId, None, CardValue(0)))
@@ -397,6 +373,7 @@ func GetDeckData*(deckId: ActorId): DeckData =
 func GetDeckData*(kind: ActorKind, index: int): DeckData =
   # Note: Helper method, prefer GetDeckData if you have a deckId
   # Note: Index is 1-based and ignored for hand and waste
+  debugecho kind, "  ", index
   let actorId = (
     case kind:
       of Tableau:
@@ -427,15 +404,15 @@ proc DoCycleHand*() =
       raise newException(ValueError, "No cards in hand or waste")
     of HandEmpty:
       # Remove all cards from the waste, reverse, then add to hand
-      let waste = session.query(staticRules.getDeck, id=WASTE_ID)
+      let waste = session.query(rules.getDeck, id=WASTE_ID)
       var cards = reversed(waste.cards)
 
       session.insert(WASTE_ID, Cards, @[])
       session.insert(HAND_ID, Cards, cards)
     of HandNotEmpty:
       # Remove top card from hand and add to waste
-      let hand = session.query(staticRules.getDeck, id=HAND_ID)
-      let waste = session.query(staticRules.getDeck, id=WASTE_ID)
+      let hand = session.query(rules.getDeck, id=HAND_ID)
+      let waste = session.query(rules.getDeck, id=WASTE_ID)
       let cardId = hand.cards[len(hand.cards)-1]
       let remainingCards = hand.cards[0..len(hand.cards)-2]
 
@@ -448,9 +425,9 @@ proc DoCycleHand*() =
 proc DoMove*(cardId: ActorId, toDeckId: ActorId) =
   # Note: this will mostly *not* check for valid moves
   # If you move a card from the waste or foundation, it will assume it's the top card
-  let card = session.query(staticRules.getCard, id=cardId)
-  let deck = session.query(staticRules.getDeck, id=card.location)
-  let otherDeck = session.query(staticRules.getDeck, id=toDeckId)
+  let card = session.query(rules.getCard, id=cardId)
+  let deck = session.query(rules.getDeck, id=card.location)
+  let otherDeck = session.query(rules.getDeck, id=toDeckId)
 
   case deck.kind:
     of Hand:
