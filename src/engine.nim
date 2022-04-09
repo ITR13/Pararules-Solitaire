@@ -1,18 +1,19 @@
 import sequtils
-import std/random
 import std/algorithm
+import std/random
+import std/sets
 
 import pararules
 
 randomize()
 
 type
-  ActorKind = enum
+  ActorKind* = enum
     Card, Tableau, Foundation, Hand, Waste
 
-  CardSuit = enum
+  CardSuit* = enum
     None, Spades, Hearts, Diamonds, Clubs
-  CardValue = 0..13 # Needs to allow 0 for decks, but cards can only be 1..13
+  CardValue* = 0..13 # Needs to allow 0 for decks, but cards can only be 1..13
 
   CardList = seq[ActorId]
 
@@ -25,6 +26,12 @@ type
 
   HandWasteState = enum
     BothEmpty, HandEmpty, HandNotEmpty,
+
+  DeckData* = object
+    kind*: ActorKind
+    suit*: CardSuit
+    cards*: seq[(CardSuit, CardValue)]
+
 
 schema Fact(ActorId, Attr):
   Kind: ActorKind
@@ -313,7 +320,7 @@ func GetValidMovesForCard*(cardId: ActorId): seq[ActorId] =
 
   return validMoves
 
-func GetSelectableCards*(): seq[ActorId] =
+func GetSelectableCards*(): HashSet[ActorId] =
   # You can select the top card of the waste and foundations
   # You can also select all shown cards in the tableau
   let waste = (
@@ -348,7 +355,33 @@ func GetSelectableCards*(): seq[ActorId] =
         break
       selectable.add(card)
 
-  return selectable
+  return toHashSet(selectable)
+
+func GetDeckData*(deckId: ActorId): DeckData =
+  let deck = (
+    {.cast(noSideEffect).}:
+      session.query(staticRules.getDeck, id=deckId)
+  )
+
+  var cardData: seq[(CardSuit, CardValue)]
+
+  for cardId in deck.cards:
+    let card = (
+      {.cast(noSideEffect).}:
+        session.query(staticRules.getCard, id=cardId)
+    )
+    if card.hidden:
+      cardData.add((None, CardValue(0)))
+    else:
+      cardData.add((card.suit, card.value))
+
+  let deckData = DeckData(
+    kind : deck.kind,
+    suit : deck.suit,
+    cards : cardData
+  )
+
+  return deckData
 
 proc DoCycleHand*() =
   let state = GetHandWasteState()
@@ -376,7 +409,7 @@ proc DoCycleHand*() =
   session.fireRules()
 
 proc DoMove*(cardId: ActorId, toDeckId: ActorId) =
-  # Note, this will mostly not check for valid moves
+  # Note: this will mostly *not* check for valid moves
   # If you move a card from the waste or foundation, it will assume it's the top card
   let card = session.query(staticRules.getCard, id=cardId)
   let deck = session.query(staticRules.getDeck, id=card.location)
