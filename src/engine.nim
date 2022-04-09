@@ -9,29 +9,29 @@ randomize()
 
 type
   ActorKind* = enum
-    Card, Tableau, Foundation, Hand, Waste
+    Card, Tableau, Foundation, Hand, Waste,
 
   CardSuit* = enum
-    None, Spades, Hearts, Diamonds, Clubs
+    None, Hearts, Clubs, Diamonds, Spades,
   CardValue* = 0..13 # Needs to allow 0 for decks, but cards can only be 1..13
 
   CardList = seq[ActorId]
 
-  ActorId = 1..(52+7+4+1+1)
+  ActorId* = 1..(52+7+4+1+1)
 
   Attr = enum
     Kind, Suit, Value,
     Hidden, Location, # Card specific
     Size, Cards, # Deck specific
 
-  HandWasteState = enum
+  HandWasteState* = enum
     BothEmpty, HandEmpty, HandNotEmpty,
 
   DeckData* = object
     kind*: ActorKind
     index*: int
     suit*: CardSuit
-    cards*: seq[(CardSuit, CardValue)]
+    cards*: seq[(ActorId, CardSuit, CardValue)]
 
 
 schema Fact(ActorId, Attr):
@@ -364,7 +364,7 @@ func GetDeckData*(deckId: ActorId): DeckData =
       session.query(staticRules.getDeck, id=deckId)
   )
 
-  var cardData: seq[(CardSuit, CardValue)]
+  var cardData: seq[(ActorId, CardSuit, CardValue)]
 
   for cardId in deck.cards:
     let card = (
@@ -372,9 +372,9 @@ func GetDeckData*(deckId: ActorId): DeckData =
         session.query(staticRules.getCard, id=cardId)
     )
     if card.hidden:
-      cardData.add((None, CardValue(0)))
+      cardData.add((deckId, None, CardValue(0)))
     else:
-      cardData.add((card.suit, card.value))
+      cardData.add((cardId, card.suit, card.value))
 
   let deckIndex = (
     case deck.kind:

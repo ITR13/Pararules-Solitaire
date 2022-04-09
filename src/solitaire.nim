@@ -1,3 +1,4 @@
+import cli
 
 when isMainModule:
-  echo("Hello, World!")
+  PlayLoop()
