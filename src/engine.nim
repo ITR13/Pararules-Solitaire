@@ -29,6 +29,7 @@ type
 
   DeckData* = object
     kind*: ActorKind
+    index*: int
     suit*: CardSuit
     cards*: seq[(CardSuit, CardValue)]
 
@@ -375,13 +376,49 @@ func GetDeckData*(deckId: ActorId): DeckData =
     else:
       cardData.add((card.suit, card.value))
 
+  let deckIndex = (
+    case deck.kind:
+      of Tableau: (int(deckId) - 52)
+      of Foundation: (int(deckId) - 52 - 7)
+      of Hand: 0
+      of Waste: 0
+      of Card: raise newException(ValueError, "Invalid deck")
+  )
+
   let deckData = DeckData(
     kind : deck.kind,
+    index : deckIndex,
     suit : deck.suit,
     cards : cardData
   )
 
   return deckData
+
+func GetDeckData*(kind: ActorKind, index: int): DeckData =
+  # Note: Helper method, prefer GetDeckData if you have a deckId
+  # Note: Index is 1-based and ignored for hand and waste
+  let actorId = (
+    case kind:
+      of Tableau:
+        (
+          if index in 1..7:
+            ActorId(52+index)
+          else:
+            raise newException(ValueError, "Invalid tableau index")
+        )
+      of Foundation:
+        (
+          if index in 1..4:
+            ActorId(52+7+index)
+          else:
+            raise newException(ValueError, "Invalid foundation index")
+        )
+      of Hand: HAND_ID
+      of Waste: WASTE_ID
+      of Card: raise newException(ValueError, "Cards cannot be decks")
+  )
+
+  return GetDeckData(actorId)
 
 proc DoCycleHand*() =
   let state = GetHandWasteState()
