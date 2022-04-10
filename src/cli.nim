@@ -153,7 +153,6 @@ proc PrintGame(storedData: StoredData) =
     stdout.write("│\n")
 
   stdout.write("└─────────────────────────────┘\n")
-  stdout.write("\n")
 
 proc PlayTurn(storedData: var StoredData) =
   var hasInput = ""
@@ -178,7 +177,7 @@ proc PlayTurn(storedData: var StoredData) =
     let stockColor = (if handWasteState == BothEmpty: styleDim else: styleBright)
     let talonColor = (if len(storedData.waste.cards) == 0: styleDim else: styleBright)
 
-    stdout.write("\nINPUT: ")
+    stdout.write("INPUT: ")
     stdout.styledWrite(stockColor, "[S: cycle stock] ")
     stdout.styledWrite(talonColor, "[T: Use card from talon]")
     stdout.write(" [T1-7: Take card from tableau]\n")
@@ -219,8 +218,8 @@ proc PlayTurn(storedData: var StoredData) =
             err = "Tableau #" & $index & " is empty"
             continue
 
-          if len(cards) == 1:
-            let (id, suit, value) = cards[0]
+          if len(cards) == 1 or (cards[len(cards)-2][1] == None):
+            let (id, suit, value) = cards[len(cards)-1]
             let (str, _) = toStr(suit, value)
             hasInput = "Tableau #" & $index & ": " & str
             cardId = id
@@ -237,8 +236,17 @@ proc PlayTurn(storedData: var StoredData) =
     if isSome(deck):
       let tableau = get(deck)
 
-      let max = len(tableau.cards)
-      stdout.write("Write a number between 1 and " & $max & " (c to cancel)\n")
+      var shownCards: seq[int]
+      for i in countdown(len(tableau.cards)-1, 0):
+        let (_, suit, value) = tableau.cards[i]
+        if suit == None:
+          continue
+        shownCards.add(i)
+
+        stdout.write("[" & $len(shownCards) & "]: ")
+        let (text, color) = toStr(suit, value)
+        stdout.styledWriteLine(color, bgWhite, text)
+
       let input = stdin.readLine().toLowerAscii()
 
       if input == "c":
@@ -254,11 +262,11 @@ proc PlayTurn(storedData: var StoredData) =
         err = input & " has too many digits"
         continue
 
-      if not (index in 1..max):
-        err = $index & "is not between 1 and " & $max
+      if not (index in 1..len(shownCards)):
+        err = $index & "is not between 1 and " & $len(shownCards)
         continue
 
-      let (id, suit, value) = tableau.cards[index-1]
+      let (id, suit, value) = tableau.cards[shownCards[index-1]]
       if suit == None:
         err = "You can't play a hidden card"
         continue
