@@ -1,6 +1,7 @@
 import strutils
 import terminal
 import options
+import parseutils
 
 import engine
 
@@ -107,7 +108,7 @@ proc PrintGame(storedData: StoredData) =
 
     stdout.styledWrite(color, bgWhite, text)
   else:
-    stdout.write("  ")
+    stdout.write("   ")
   stdout.write("  │\n")
   stdout.write(" └───────┘ └───────┘\n\n")
 
@@ -160,6 +161,9 @@ proc PlayTurn(storedData: var StoredData) =
   var deck = none(DeckData)
   var cardId: ActorId
 
+  var fromDeckType: ActorKind
+  var fromDeckIndex: int
+
   while true:
     PrintGame(storedData)
 
@@ -181,9 +185,9 @@ proc PlayTurn(storedData: var StoredData) =
 
     if hasInput == "":
       deck = none(DeckData)
-      var input = stdin.readLine()
+      var input = stdin.readLine().toLowerAscii()
       case input:
-        of "S":
+        of "s":
           if handWasteState == BothEmpty:
             err = "Stock is empty"
             continue
@@ -192,7 +196,7 @@ proc PlayTurn(storedData: var StoredData) =
           UpdateDeck(storedData, GetDeckData(Hand, 0))
           UpdateDeck(storedData, GetDeckData(Waste, 0))
           break
-        of "T":
+        of "t":
           let cards = storedData.waste.cards
           if len(cards) == 0:
             err = "Talon is empty"
@@ -202,27 +206,114 @@ proc PlayTurn(storedData: var StoredData) =
           let (str, _) = toStr(suit, value)
           hasInput = "Talon: " & str
           cardId = id
+          fromDeckType = Waste
           continue
-        of "T1", "T2", "T3", "T4", "T5", "T6", "T7":
+        of "t1", "t2", "t3", "t4", "t5", "t6", "t7":
           let index = int(input[1]) - int('0')
           let tableau = storedData.tableau[index-1]
           let cards = tableau.cards
+          fromDeckType = tableau.kind
+          fromDeckIndex = index
+
           if len(cards) == 0:
             err = "Tableau #" & $index & " is empty"
             continue
 
+          if len(cards) == 1:
+            let (id, suit, value) = cards[0]
+            let (str, _) = toStr(suit, value)
+            hasInput = "Tableau #" & $index & ": " & str
+            cardId = id
+            continue
+
           deck = some(tableau)
-          hasInput = "Tableau" & $index
+          hasInput = "Tableau #" & $index
           continue
         else:
           err = "Invalid input " & input
           continue
     stdout.writeLine(hasInput)
 
+    if isSome(deck):
+      let tableau = get(deck)
+
+      let max = len(tableau.cards)
+      stdout.write("Write a number between 1 and " & $max & " (c to cancel)\n")
+      let input = stdin.readLine().toLowerAscii()
+
+      if input == "c":
+        break
+
+      var index: int
+      try:
+        let parsed = parseInt(input, index, 0)
+        if parsed == 0:
+          err = input & " is not a number"
+          continue
+      except:
+        err = input & " has too many digits"
+        continue
+
+      if not (index in 1..max):
+        err = $index & "is not between 1 and " & $max
+        continue
+
+      let (id, suit, value) = tableau.cards[index-1]
+      if suit == None:
+        err = "You can't play a hidden card"
+        continue
+      let (str, _) = toStr(suit, value)
+      hasInput = "Tableau #" & $index & ": " & str
+      cardId = id
+      deck = none(DeckData)
+      continue
+
+    let moves = GetValidMovesForCard(cardId)
+    stdout.write("Whereto?\n")
+    for i, deckId in moves:
+      let deck = GetDeckData(deckId)
+      stdout.write("[" & $(i+1) & "]: " & $deck.kind & " #" & $deck.index & "\n")
+    stdout.write("[c]: cancel\n")
+
+    let input = stdin.readLine().toLowerAscii()
+    if input == "c":
+      break
+
+    if len(moves) == 0:
+      err = "Press c to cancel"
+      continue
+
+    var index: int
+    try:
+      let parsed = parseInt(input, index, 0)
+      if parsed == 0:
+        err = input & " is not a number"
+        continue
+    except:
+      err = input & " has too many digits"
+      continue
+
+    if not (index in 1..len(moves)):
+      err = $index & " is not between 1 and " & $len(moves)
+      continue
+
+    DoMove(cardId, moves[index-1])
+    UpdateDeck(storedData, GetDeckData(moves[index-1]))
+    UpdateDeck(storedData, GetDeckData(fromDeckType, fromDeckIndex))
+    break
+
 
 proc PlayLoop*() =
   var data = UpdateAll()
   while true:
     PlayTurn(data)
-    if len(data.waste.cards) == 0:
+    # if all foundations have kings, game is won
+    var filled = 0
+    for i in 0..3:
+      let foundation = data.foundation[i]
+      if len(foundation.cards) == 13:
+        filled += 1
+
+    if filled == 4:
+      stdout.writeLine("You won!")
       break

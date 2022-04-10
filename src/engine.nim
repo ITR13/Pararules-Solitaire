@@ -220,7 +220,7 @@ proc CreateAllCards() =
     let cardId = hand.cards[len(hand.cards)-1]
     session.insert(cardId, Hidden, false)
 
-proc CreateAll() =
+proc CreateAll*() =
   CreateAllDecks()
   session.fireRules()
   CreateAllCards()
@@ -259,9 +259,9 @@ func GetValidMovesForCard*(cardId: ActorId): seq[ActorId] =
 
   proc suitIsBlack(suit: CardSuit): bool =
     return case suit:
-      of Spades: false
+      of Spades: true
       of Hearts: false
-      of Diamonds: true
+      of Diamonds: false
       of Clubs: true
       of None: raise newException(ValueError, "Invalid suit")
 
@@ -280,7 +280,7 @@ func GetValidMovesForCard*(cardId: ActorId): seq[ActorId] =
         session.query(rules.getDeck, id=tabId)
     )
     let acceptValue = (if tab.value == 0: 13 else: tab.value - 1)
-    if isOppositeColor(card.suit, true) and card.value == acceptValue:
+    if isOppositeColor(tab.suit, true) and card.value == acceptValue:
       validMoves.add(tabId)
 
   if isTopCardInDeck:
@@ -292,7 +292,7 @@ func GetValidMovesForCard*(cardId: ActorId): seq[ActorId] =
           session.query(rules.getDeck, id=fouId)
       )
       let acceptValue = fou.value + 1
-      if isOppositeColor(card.suit, false) and card.value == acceptValue:
+      if card.suit == fou.suit and card.value == acceptValue:
         validMoves.add(fouId)
 
   return validMoves
@@ -373,7 +373,6 @@ func GetDeckData*(deckId: ActorId): DeckData =
 func GetDeckData*(kind: ActorKind, index: int): DeckData =
   # Note: Helper method, prefer GetDeckData if you have a deckId
   # Note: Index is 1-based and ignored for hand and waste
-  debugecho kind, "  ", index
   let actorId = (
     case kind:
       of Tableau:
