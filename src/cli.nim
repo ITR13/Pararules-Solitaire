@@ -180,7 +180,7 @@ proc PlayTurn(storedData: var StoredData) =
     stdout.write("INPUT: ")
     stdout.styledWrite(stockColor, "[S: cycle stock] ")
     stdout.styledWrite(talonColor, "[T: Use card from talon]")
-    stdout.write(" [T1-7: Take card from tableau]\n")
+    stdout.write(" [1-7: Take card from tableau]\n")
 
     if hasInput == "":
       deck = none(DeckData)
@@ -207,8 +207,8 @@ proc PlayTurn(storedData: var StoredData) =
           cardId = id
           fromDeckType = Waste
           continue
-        of "t1", "t2", "t3", "t4", "t5", "t6", "t7":
-          let index = int(input[1]) - int('0')
+        of "1", "2", "3", "4", "5", "6", "7":
+          let index = int(input[0]) - int('0')
           let tableau = storedData.tableau[index-1]
           let cards = tableau.cards
           fromDeckType = tableau.kind
