@@ -228,14 +228,9 @@ proc CreateAll*() =
 CreateAll()
 
 func GetHandWasteState*(): HandWasteState =
-  let hand = (
-    {.cast(noSideEffect).}:
-      session.query(rules.getDeck, id=HAND_ID)
-  )
-  let waste = (
-    {.cast(noSideEffect).}:
-      session.query(rules.getDeck, id=WASTE_ID)
-  )
+  {.cast(noSideEffect).}:
+    let hand = session.query(rules.getDeck, id=HAND_ID)
+    let waste = session.query(rules.getDeck, id=WASTE_ID)
 
   if hand.size != 0:
     return HandNotEmpty
@@ -244,14 +239,9 @@ func GetHandWasteState*(): HandWasteState =
   return BothEmpty
 
 func GetValidMovesForCard*(cardId: ActorId): seq[ActorId] =
-  let card = (
-    {.cast(noSideEffect).}:
-      session.query(rules.getCard, id=cardId)
-  )
-  let deck = (
-    {.cast(noSideEffect).}:
-      session.query(rules.getDeck, id=card.location)
-  )
+  {.cast(noSideEffect).}:
+    let card = session.query(rules.getCard, id=cardId)
+    let deck = session.query(rules.getDeck, id=card.location)
 
   var validMoves: seq[ActorId]
   if card.hidden or deck.kind == Hand:
@@ -275,10 +265,9 @@ func GetValidMovesForCard*(cardId: ActorId): seq[ActorId] =
 
   for tabId in ActorId(52+1)..ActorId(52+7):
     # Tableau accepts cards of one less value (empty = 14) and of the opposite color
-    let tab = (
-      {.cast(noSideEffect).}:
-        session.query(rules.getDeck, id=tabId)
-    )
+    {.cast(noSideEffect).}:
+      let tab = session.query(rules.getDeck, id=tabId)
+
     let acceptValue = (if tab.value == 0: 13 else: tab.value - 1)
     if isOppositeColor(tab.suit, true) and card.value == acceptValue:
       validMoves.add(tabId)
@@ -287,10 +276,9 @@ func GetValidMovesForCard*(cardId: ActorId): seq[ActorId] =
     # Cannot move multiple cards at once to the foundation
     for fouId in ActorId(52+8)..ActorId(52+12):
       # Foundation accepts cards of one more value (empty = 0) and of the same color
-      let fou = (
-        {.cast(noSideEffect).}:
-          session.query(rules.getDeck, id=fouId)
-      )
+      {.cast(noSideEffect).}:
+        let fou = session.query(rules.getDeck, id=fouId)
+
       let acceptValue = fou.value + 1
       if card.suit == fou.suit and card.value == acceptValue:
         validMoves.add(fouId)
@@ -300,10 +288,8 @@ func GetValidMovesForCard*(cardId: ActorId): seq[ActorId] =
 func GetSelectableCards*(): HashSet[ActorId] =
   # You can select the top card of the waste and foundations
   # You can also select all shown cards in the tableau
-  let waste = (
-    {.cast(noSideEffect).}:
-      session.query(rules.getDeck, id=WASTE_ID)
-  )
+  {.cast(noSideEffect).}:
+    let waste = session.query(rules.getDeck, id=WASTE_ID)
 
   var selectable: seq[ActorId]
 
@@ -311,23 +297,20 @@ func GetSelectableCards*(): HashSet[ActorId] =
     selectable.add(waste.cards[len(waste.cards)-1])
 
   for fouId in ActorId(52+8)..ActorId(52+12):
-    let fou = (
-      {.cast(noSideEffect).}:
-        session.query(rules.getDeck, id=fouId)
-    )
+    {.cast(noSideEffect).}:
+      let fou = session.query(rules.getDeck, id=fouId)
+
     if fou.size != 0:
       selectable.add(fou.cards[len(fou.cards)-1])
 
   for tabId in ActorId(52+1)..ActorId(52+7):
-    let tab = (
-      {.cast(noSideEffect).}:
-        session.query(rules.getDeck, id=tabId)
-    )
+    {.cast(noSideEffect).}:
+      let tab = session.query(rules.getDeck, id=tabId)
+
     for card in tab.cards:
-      let hidden = (
-        {.cast(noSideEffect).}:
-          session.query(rules.getCard, id=card).hidden
-      )
+      {.cast(noSideEffect).}:
+        let hidden = session.query(rules.getCard, id=card).hidden
+
       if hidden:
         break
       selectable.add(card)
@@ -335,18 +318,15 @@ func GetSelectableCards*(): HashSet[ActorId] =
   return toHashSet(selectable)
 
 func GetDeckData*(deckId: ActorId): DeckData =
-  let deck = (
-    {.cast(noSideEffect).}:
-      session.query(rules.getDeck, id=deckId)
-  )
+  {.cast(noSideEffect).}:
+   let deck = session.query(rules.getDeck, id=deckId)
 
   var cardData: seq[(ActorId, CardSuit, CardValue)]
 
   for cardId in deck.cards:
-    let card = (
-      {.cast(noSideEffect).}:
-        session.query(rules.getCard, id=cardId)
-    )
+    {.cast(noSideEffect).}:
+      let card = session.query(rules.getCard, id=cardId)
+
     if card.hidden:
       cardData.add((deckId, None, CardValue(0)))
     else:
