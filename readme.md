@@ -21,4 +21,4 @@ Not implemented: quickly adding cards to the foundation, taking cards away from 
 
 
 ## Image
-![Image of the game](https://github.com/ITR13/Pararules-Solitaire/blob/main/readme.md)
+![Image of the game](https://raw.githubusercontent.com/ITR13/Pararules-Solitaire/main/img.png)
