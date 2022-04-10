@@ -119,14 +119,14 @@ proc PrintGame(storedData: StoredData) =
   for i in 0..3:
     let fou = storedData.foundation[i]
 
-    stdout.write("| ")
+    stdout.write("│ ")
     if len(fou.cards) > 0:
       let (_, suit, value) = fou.cards[len(fou.cards)-1]
       let (text, color) = toStr(suit, value)
       stdout.styledWrite(color, bgWhite, text)
     else:
       stdout.write("   ")
-    stdout.write(" | ")
+    stdout.write(" │ ")
   stdout.write("\n")
   stdout.write("└─────┘ └─────┘ └─────┘ └─────┘\n")
 
