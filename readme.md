@@ -17,3 +17,8 @@ You can at any point write "c" to cancel your current selections.
 ## How to play
 I based it of [this](https://bicyclecards.com/how-to-play/solitaire/) and the game that pops up when you google "Solitaire"  
 Not implemented: quickly adding cards to the foundation, taking cards away from the foundation
+
+
+
+## Image
+![Image of the game](https://github.com/ITR13/Pararules-Solitaire/blob/main/readme.md)
